@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 pub mod utils;
+pub mod stun;
 
 pub struct HelloWorldPlugin;
 
