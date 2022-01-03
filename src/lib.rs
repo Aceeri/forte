@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 pub mod utils;
 pub mod effect;
+pub mod ability;
 
 pub struct HelloWorldPlugin;
 
