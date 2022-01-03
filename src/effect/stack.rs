@@ -77,3 +77,23 @@ impl EffectStack for StunStacks {
         Stunned
     }
 }
+
+// Re-applying the same effect will only up the timer.
+pub struct Burn(u64); // time in milliseconds.
+
+impl EffectStack for Burn {
+    type EffectComponent = Burn;
+    type TargetEffectComponent = Burn;
+    fn apply(&mut self, other: &Self::EffectComponent) {
+        if other.0 > self.0 {
+            self.0 = other.0;
+        }
+    }
+    fn remove(&mut self, _entity: Entity) { }
+    fn alive(&self) -> bool {
+        self.0 > 0
+    }
+    fn target_effect(&self) -> Self::TargetEffectComponent {
+        Burn(self.0)
+    }
+}
