@@ -2,6 +2,9 @@
 use bevy::{prelude::*, ecs::component::Component};
 
 use crate::effect::*;
+use smolset::SmolSet;
+
+pub struct EffectDespawn;
 
 pub trait EffectStack
 where
@@ -10,18 +13,34 @@ where
     type EffectComponent: Component;
     type TargetEffectComponent: Component;
 
-    fn apply(&mut self, comp: &Self::EffectComponent);
+    fn apply(&mut self, comp: &Self::EffectComponent, entity: Entity);
     fn remove(&mut self, entity: Entity);
     fn alive(&self) -> bool;
     fn target_effect(&self) -> Self::TargetEffectComponent;
 
     fn remove_stack(
+        mut commands: Commands,
+        mut stacks: Query<&mut Self>,
+        effect_targets: Query<&EffectTarget>,
+        added: Query<(&Self::EffectComponent, &EffectTarget, Entity), Added<EffectDespawn>>,
+    ) {
+        for (component, target, entity) in added.iter() {
+            println!("remove");
+            if let Ok(mut stacks) = stacks.get_component_mut::<Self>(target.entity()) {
+                stacks.remove(entity);
+            }
+
+            commands.entity(entity).despawn();
+        }
+    }
+
+    fn catch_removed_stack(
         mut stacks: Query<&mut Self>,
         effect_targets: Query<&EffectTarget>,
         removed: RemovedComponents<Self::EffectComponent>,
     ) {
         for entity in removed.iter() {
-            dbg!();
+            println!("catch removed");
             if let Ok(effect_target) = effect_targets.get_component::<EffectTarget>(entity) {
                 if let Ok(mut stacks) = stacks.get_component_mut::<Self>(effect_target.entity()) {
                     stacks.remove(entity);
@@ -32,12 +51,12 @@ where
 
     fn apply_stack(
         mut stacks: Query<&mut Self>,
-        added: Query<(&Self::EffectComponent, &EffectTarget), Added<Self::EffectComponent>>,
+        added: Query<(&Self::EffectComponent, &EffectTarget, Entity), Added<Self::EffectComponent>>,
     ) {
-        for (component, target) in added.iter() {
+        for (component, target, entity) in added.iter() {
+            println!("apply");
             if let Ok(mut stacks) = stacks.get_component_mut::<Self>(target.entity()) {
-                dbg!();
-                stacks.apply(component);
+                stacks.apply(component, entity);
             }
         }
     }
@@ -47,10 +66,11 @@ where
         stacks: Query<(&Self, Entity), Changed<Self>>,
     ) {
         for (stack, entity) in stacks.iter() {
+            println!("modified");
             if stack.alive() {
-                commands.entity(entity).remove::<Self::TargetEffectComponent>();
-            } else {
                 commands.entity(entity).insert(stack.target_effect());
+            } else {
+                commands.entity(entity).remove::<Self::TargetEffectComponent>();
             }
         }
     }
@@ -58,28 +78,45 @@ where
 
 
 // Control how stacking of the same effect works.
-#[derive(Clone, Debug, Default)]
-pub struct StunStacks(u16);
+#[derive(PartialEq, Clone, Debug)]
+pub struct StunStacks(SmolSet<[Entity; 4]>);
+
+impl Default for StunStacks {
+    fn default() -> Self {
+        Self(SmolSet::new())
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
+pub struct StunTimer(u32);
+
+/*
+fn stun_timer(time: Res<Time>, query: Query<&mut StunTimer>) {
+    for timer in query.iter_mut() {
+        time.
+    }
+}
+*/
 
 // Effect component.
-#[derive(Clone, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
 pub struct Stun;
 
 // Target effect component.
-#[derive(Clone, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
 pub struct Stunned;
 
 impl EffectStack for StunStacks {
     type EffectComponent = Stun;
     type TargetEffectComponent = Stunned;
-    fn apply(&mut self, _comp: &Self::EffectComponent) {
-        self.0 = self.0.saturating_add(1);
+    fn apply(&mut self, _comp: &Self::EffectComponent, entity: Entity) {
+        self.0.insert(entity);
     }
-    fn remove(&mut self, _entity: Entity) {
-        self.0 = self.0.saturating_sub(1);
+    fn remove(&mut self, entity: Entity) {
+        self.0.remove(&entity);
     }
     fn alive(&self) -> bool {
-        self.0 > 0
+        self.0.len() > 0
     }
     fn target_effect(&self) -> Self::TargetEffectComponent {
         Stunned
@@ -92,7 +129,7 @@ pub struct Burn(u64); // time in milliseconds.
 impl EffectStack for Burn {
     type EffectComponent = Burn;
     type TargetEffectComponent = Burn;
-    fn apply(&mut self, other: &Self::EffectComponent) {
+    fn apply(&mut self, other: &Self::EffectComponent, entity: Entity) {
         if other.0 > self.0 {
             self.0 = other.0;
         }
@@ -112,33 +149,66 @@ mod tests {
 
     #[test]
     fn stack_stuns() {
-        let mut world = World::default();
-        
-        let mut stage = SystemStage::parallel();
-        stage.add_system(StunStacks::apply_stack.system());
-        stage.add_system(StunStacks::remove_stack.system());
-        stage.add_system(StunStacks::modified_stacks.system());
+        let mut app_builder = App::build();
+        let mut app = std::mem::take(&mut app_builder
+            .add_plugins(MinimalPlugins)
+            .add_system_to_stage(CoreStage::Update, StunStacks::apply_stack.system().label("apply_stack").before("remove_stack"))
+            .add_system_to_stage(CoreStage::Update, StunStacks::remove_stack.system().label("remove_stack"))
+            .add_system_to_stage(CoreStage::PostUpdate, StunStacks::modified_stacks.system().label("modified_stack"))
+            .add_system_to_stage(CoreStage::PostUpdate, StunStacks::catch_removed_stack.system().label("catch_removed_stack").before("modified_stack"))
+            .app);
 
-        stage.run(&mut world);
+        app.update();
 
-        let ability = world.spawn().id();
-        let target = world.spawn()
-            .insert(StunStacks::default())
+        let ability = app.world.spawn()
+            .insert(Name::new("Ability"))
             .id();
-        let effect = world.spawn()
+        let target = app.world.spawn()
+            .insert(StunStacks::default())
+            .insert(Name::new("Target"))
+            .id();
+        let effect = app.world.spawn()
             .insert(EffectTarget(target))
             .insert(Stun)
+            .insert(Name::new("Stun"))
             .id();
 
-        dbg!(world.get::<StunStacks>(target));
-        assert_eq!(world.get::<StunStacks>(target).unwrap().0, 0);
+        let effect2 = app.world.spawn()
+            .insert(EffectTarget(target))
+            .insert(Stun)
+            .insert(Name::new("Stun"))
+            .id();
 
-        stage.run(&mut world);
-        dbg!(world.get::<StunStacks>(target));
-        assert_eq!(world.get::<StunStacks>(target).unwrap().0, 1);
+        dbg!(app.world.get::<StunStacks>(target));
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 0);
+        assert_eq!(app.world.get::<Stunned>(target), None);
 
-        stage.run(&mut world);
-        dbg!(world.get::<StunStacks>(target));
-        assert_eq!(world.get::<StunStacks>(target).unwrap().0, 1);
+        app.update();
+        dbg!(app.world.get::<StunStacks>(target));
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 2);
+        assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
+
+        app.update();
+        dbg!(app.world.get::<StunStacks>(target));
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 2);
+        assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
+
+        // Remove effect from target.
+        app.world.entity_mut(effect).insert(EffectDespawn);
+
+        app.update();
+        dbg!(app.world.get::<StunStacks>(target));
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 1);
+        assert!(app.world.get::<Stunned>(target).is_some());
+        assert!(app.world.get_entity(effect).is_none());
+
+        // Remove secondary effect from target.
+        app.world.entity_mut(effect2).insert(EffectDespawn);
+
+        app.update();
+        dbg!(app.world.get::<StunStacks>(target));
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 0);
+        assert!(app.world.get::<Stunned>(target).is_none());
+        assert!(app.world.get_entity(effect2).is_none());
     }
 }

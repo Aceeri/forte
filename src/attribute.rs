@@ -59,7 +59,7 @@ mod tests {
         let mut app = std::mem::take(&mut app_builder
             .add_plugins(MinimalPlugins)
             //.add_plugins(DefaultPlugins)
-            .add_stage("test", SystemStage::parallel()
+            .add_stage(CoreStage::PostUpdate, SystemStage::parallel()
                 .with_run_criteria(FixedTimestep::step(1.0).with_label("every_second"))
                 .with_system(regen_health.system())
             )
