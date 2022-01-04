@@ -1,6 +1,5 @@
-
-use bevy::prelude::*;
 use bevy::core::{FixedTimestep, FixedTimesteps};
+use bevy::prelude::*;
 
 #[derive(Debug, Clone, Default)]
 pub struct Health(u32);
@@ -27,7 +26,6 @@ pub struct PlayerStatBundle {
     health: Health,
     max_health: MaxHealth,
     health_regen: HealthRegen,
-
     /*
     armor: Armor,
     magic_resist: MagicResist,
@@ -56,22 +54,30 @@ mod tests {
     #[test]
     fn health_regen() {
         let mut app_builder = App::build();
-        let mut app = std::mem::take(&mut app_builder
-            .add_plugins(MinimalPlugins)
-            //.add_plugins(DefaultPlugins)
-            .add_stage(CoreStage::PostUpdate, SystemStage::parallel()
-                .with_run_criteria(FixedTimestep::step(1.0).with_label("every_second"))
-                .with_system(regen_health.system())
-            )
-            .app);
+        let mut app = std::mem::take(
+            &mut app_builder
+                .add_plugins(MinimalPlugins)
+                //.add_plugins(DefaultPlugins)
+                .add_stage(
+                    CoreStage::PostUpdate,
+                    SystemStage::parallel()
+                        .with_run_criteria(FixedTimestep::step(1.0).with_label("every_second"))
+                        .with_system(regen_health.system()),
+                )
+                .app,
+        );
 
-        let player = app.world.spawn()
+        let player = app
+            .world
+            .spawn()
             .insert(Health(1))
             .insert(MaxHealth(10))
             .insert(HealthRegen(5))
             .id();
-            
-        let dead_player = app.world.spawn()
+
+        let dead_player = app
+            .world
+            .spawn()
             .insert(Health(0))
             .insert(MaxHealth(10))
             .insert(HealthRegen(5))

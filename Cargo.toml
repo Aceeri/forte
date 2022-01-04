@@ -1,10 +1,10 @@
 [package]
-name = "template"
-description = "A Bevy + mdbook enabled template repo to build on."
+name = "forte"
+description = "A bevy ecs ability framework"
 version = "0.0.0"
-authors = ["Leafwing Studios"]
-homepage = "https://github.com/leafwing-studios/template-repo"
-repository = "https://github.com/leafwing-studios/template-repo"
+authors = ["Aceeri (conmcclusk@gmail.com)"]
+homepage = "https://github.com/aceeri/forte"
+repository = "https://github.com/aceeri/forte"
 license = "MIT + APACHE"
 edition = "2021"
 categories = ["games", "game-development"]
@@ -33,7 +33,6 @@ bevy = { version = "0.5", default-features = false }
 criterion = "0.3"
 
 [lib]
-name = "template_lib"
 path = "src/lib.rs"
 
 [[bench]]

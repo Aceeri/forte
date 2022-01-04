@@ -1,4 +1,3 @@
-
 pub mod effect;
 pub mod stack;
 

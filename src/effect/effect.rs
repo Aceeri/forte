@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 // Effect's target (player, mob, etc.)

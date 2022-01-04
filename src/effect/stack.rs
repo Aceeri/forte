@@ -1,5 +1,4 @@
-
-use bevy::{prelude::*, ecs::component::Component};
+use bevy::{ecs::component::Component, prelude::*};
 
 use crate::effect::*;
 use smolset::SmolSet;
@@ -61,21 +60,19 @@ where
         }
     }
 
-    fn modified_stacks(
-        mut commands: Commands,
-        stacks: Query<(&Self, Entity), Changed<Self>>,
-    ) {
+    fn modified_stacks(mut commands: Commands, stacks: Query<(&Self, Entity), Changed<Self>>) {
         for (stack, entity) in stacks.iter() {
             println!("modified");
             if stack.alive() {
                 commands.entity(entity).insert(stack.target_effect());
             } else {
-                commands.entity(entity).remove::<Self::TargetEffectComponent>();
+                commands
+                    .entity(entity)
+                    .remove::<Self::TargetEffectComponent>();
             }
         }
     }
 }
-
 
 // Control how stacking of the same effect works.
 #[derive(PartialEq, Clone, Debug)]
@@ -134,7 +131,7 @@ impl EffectStack for Burn {
             self.0 = other.0;
         }
     }
-    fn remove(&mut self, _entity: Entity) { }
+    fn remove(&mut self, _entity: Entity) {}
     fn alive(&self) -> bool {
         self.0 > 0
     }
@@ -150,30 +147,54 @@ mod tests {
     #[test]
     fn stack_stuns() {
         let mut app_builder = App::build();
-        let mut app = std::mem::take(&mut app_builder
-            .add_plugins(MinimalPlugins)
-            .add_system_to_stage(CoreStage::Update, StunStacks::apply_stack.system().label("apply_stack").before("remove_stack"))
-            .add_system_to_stage(CoreStage::Update, StunStacks::remove_stack.system().label("remove_stack"))
-            .add_system_to_stage(CoreStage::PostUpdate, StunStacks::modified_stacks.system().label("modified_stack"))
-            .add_system_to_stage(CoreStage::PostUpdate, StunStacks::catch_removed_stack.system().label("catch_removed_stack").before("modified_stack"))
-            .app);
+        let mut app = std::mem::take(
+            &mut app_builder
+                .add_plugins(MinimalPlugins)
+                .add_system_to_stage(
+                    CoreStage::Update,
+                    StunStacks::apply_stack
+                        .system()
+                        .label("apply_stack")
+                        .before("remove_stack"),
+                )
+                .add_system_to_stage(
+                    CoreStage::Update,
+                    StunStacks::remove_stack.system().label("remove_stack"),
+                )
+                .add_system_to_stage(
+                    CoreStage::PostUpdate,
+                    StunStacks::modified_stacks.system().label("modified_stack"),
+                )
+                .add_system_to_stage(
+                    CoreStage::PostUpdate,
+                    StunStacks::catch_removed_stack
+                        .system()
+                        .label("catch_removed_stack")
+                        .before("modified_stack"),
+                )
+                .app,
+        );
 
         app.update();
 
-        let ability = app.world.spawn()
-            .insert(Name::new("Ability"))
-            .id();
-        let target = app.world.spawn()
+        let ability = app.world.spawn().insert(Name::new("Ability")).id();
+        let target = app
+            .world
+            .spawn()
             .insert(StunStacks::default())
             .insert(Name::new("Target"))
             .id();
-        let effect = app.world.spawn()
+        let effect = app
+            .world
+            .spawn()
             .insert(EffectTarget(target))
             .insert(Stun)
             .insert(Name::new("Stun"))
             .id();
 
-        let effect2 = app.world.spawn()
+        let effect2 = app
+            .world
+            .spawn()
             .insert(EffectTarget(target))
             .insert(Stun)
             .insert(Name::new("Stun"))
