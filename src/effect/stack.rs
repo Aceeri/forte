@@ -35,13 +35,19 @@ where
 
     fn catch_removed_stack(
         mut stacks: Query<&mut Self>,
+        relations: Res<EffectRelations>,
         effect_targets: Query<&EffectTarget>,
         removed: RemovedComponents<Self::EffectComponent>,
     ) {
         for entity in removed.iter() {
             println!("catch removed");
-            if let Ok(effect_target) = effect_targets.get_component::<EffectTarget>(entity) {
-                if let Ok(mut stacks) = stacks.get_component_mut::<Self>(effect_target.entity()) {
+            let effect_target = match effect_targets.get_component::<EffectTarget>(entity) {
+                Ok(target) => Some(target.entity()),
+                Err(_) => relations.0.get(&entity).cloned(),
+            };
+
+            if let Some(target_entity) = effect_target {
+                if let Ok(mut stacks) = stacks.get_component_mut::<Self>(target_entity) {
                     stacks.remove(entity);
                 }
             }
@@ -152,6 +158,14 @@ mod tests {
                 .add_plugins(MinimalPlugins)
                 .add_system_to_stage(
                     CoreStage::Update,
+                    crate::effect::cache_relations.system(),
+                )
+                .add_system_to_stage(
+                    CoreStage::Update,
+                    crate::effect::cleanup_relations.system(),
+                )
+                .add_system_to_stage(
+                    CoreStage::Update,
                     StunStacks::apply_stack
                         .system()
                         .label("apply_stack")
@@ -174,6 +188,8 @@ mod tests {
                 )
                 .app,
         );
+
+        app.world.insert_resource(EffectRelations::default());
 
         app.update();
 
@@ -215,7 +231,8 @@ mod tests {
         assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
 
         // Remove effect from target.
-        app.world.entity_mut(effect).insert(EffectDespawn);
+        //app.world.entity_mut(effect).insert(EffectDespawn);
+        app.world.entity_mut(effect).despawn();
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
