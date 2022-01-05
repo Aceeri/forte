@@ -3,8 +3,6 @@ use bevy::{ecs::component::Component, prelude::*};
 use crate::effect::*;
 use smolset::SmolSet;
 
-pub struct EffectDespawn;
-
 pub trait EffectStack
 where
     Self: 'static + Sized + Send + Sync,
@@ -18,22 +16,6 @@ where
     fn target_effect(&self) -> Self::TargetEffectComponent;
 
     fn remove_stack(
-        mut commands: Commands,
-        mut stacks: Query<&mut Self>,
-        effect_targets: Query<&EffectTarget>,
-        added: Query<(&Self::EffectComponent, &EffectTarget, Entity), Added<EffectDespawn>>,
-    ) {
-        for (component, target, entity) in added.iter() {
-            println!("remove");
-            if let Ok(mut stacks) = stacks.get_component_mut::<Self>(target.entity()) {
-                stacks.remove(entity);
-            }
-
-            commands.entity(entity).despawn();
-        }
-    }
-
-    fn catch_removed_stack(
         mut stacks: Query<&mut Self>,
         relations: Res<EffectRelations>,
         effect_targets: Query<&EffectTarget>,
@@ -157,11 +139,11 @@ mod tests {
             &mut app_builder
                 .add_plugins(MinimalPlugins)
                 .add_system_to_stage(
-                    CoreStage::Update,
+                    CoreStage::PreUpdate,
                     crate::effect::cache_relations.system(),
                 )
                 .add_system_to_stage(
-                    CoreStage::Update,
+                    CoreStage::PreUpdate,
                     crate::effect::cleanup_relations.system(),
                 )
                 .add_system_to_stage(
@@ -172,18 +154,14 @@ mod tests {
                         .before("remove_stack"),
                 )
                 .add_system_to_stage(
-                    CoreStage::Update,
-                    StunStacks::remove_stack.system().label("remove_stack"),
-                )
-                .add_system_to_stage(
                     CoreStage::PostUpdate,
                     StunStacks::modified_stacks.system().label("modified_stack"),
                 )
                 .add_system_to_stage(
                     CoreStage::PostUpdate,
-                    StunStacks::catch_removed_stack
+                    StunStacks::remove_stack
                         .system()
-                        .label("catch_removed_stack")
+                        .label("removed_stack")
                         .before("modified_stack"),
                 )
                 .app,
@@ -231,7 +209,6 @@ mod tests {
         assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
 
         // Remove effect from target.
-        //app.world.entity_mut(effect).insert(EffectDespawn);
         app.world.entity_mut(effect).despawn();
 
         app.update();
@@ -241,7 +218,7 @@ mod tests {
         assert!(app.world.get_entity(effect).is_none());
 
         // Remove secondary effect from target.
-        app.world.entity_mut(effect2).insert(EffectDespawn);
+        app.world.entity_mut(effect2).despawn();
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
