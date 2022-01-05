@@ -17,7 +17,7 @@ where
 
     fn remove_stack(
         mut stacks: Query<&mut Self>,
-        relations: Res<EffectRelations>,
+        relations: Res<Relations<EffectTarget>>,
         effect_targets: Query<&EffectTarget>,
         removed: RemovedComponents<Self::EffectComponent>,
     ) {
@@ -25,7 +25,7 @@ where
             println!("catch removed");
             let effect_target = match effect_targets.get_component::<EffectTarget>(entity) {
                 Ok(target) => Some(target.entity()),
-                Err(_) => relations.0.get(&entity).cloned(),
+                Err(_) => relations.get(&entity).cloned(),
             };
 
             if let Some(target_entity) = effect_target {
@@ -140,11 +140,11 @@ mod tests {
                 .add_plugins(MinimalPlugins)
                 .add_system_to_stage(
                     CoreStage::PreUpdate,
-                    crate::effect::cache_relations.system(),
+                    Relations::<EffectTarget>::cache.system(),
                 )
                 .add_system_to_stage(
                     CoreStage::PreUpdate,
-                    crate::effect::cleanup_relations.system(),
+                    Relations::<EffectTarget>::cleanup.system(),
                 )
                 .add_system_to_stage(
                     CoreStage::Update,
@@ -167,7 +167,7 @@ mod tests {
                 .app,
         );
 
-        app.world.insert_resource(EffectRelations::default());
+        app.world.insert_resource(Relations::<EffectTarget>::default());
 
         app.update();
 
