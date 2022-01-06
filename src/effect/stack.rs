@@ -3,24 +3,6 @@ use bevy::{ecs::component::Component, prelude::*};
 use crate::effect::*;
 use smolset::SmolSet;
 
-fn cleanup_despawning(
-    mut commands: Commands,
-    despawning: Query<Entity, With<EffectDespawn>>,
-) {
-    for entity in despawning.iter() {
-        commands.entity(entity).despawn();
-    }
-}
-
-fn cleanup_removing<T: 'static + Send + Sync + Component>(
-    mut commands: Commands,
-    removing: Query<Entity, With<Remove<T>>>,
-) {
-    for entity in removing.iter() {
-        commands.entity(entity).remove::<T>();
-    }
-}
-
 pub trait EffectStack
 where
     Self: 'static + Sized + Send + Sync,
@@ -35,7 +17,10 @@ where
 
     fn remove_stack(
         mut stacks: Query<&mut Self>,
-        removing: Query<(&Self::EffectComponent, &EffectTarget, Entity), Or<(Added<EffectDespawn>, Added<Remove<Self::EffectComponent>>)>>,
+        removing: Query<
+            (&Self::EffectComponent, &EffectTarget, Entity),
+            Or<(Added<Despawn>, Added<Remove<Self::EffectComponent>>)>,
+        >,
     ) {
         for (component, target, entity) in removing.iter() {
             if let Ok(mut stacks) = stacks.get_component_mut::<Self>(target.entity()) {
@@ -49,7 +34,6 @@ where
         added: Query<(&Self::EffectComponent, &EffectTarget, Entity), Added<Self::EffectComponent>>,
     ) {
         for (component, target, entity) in added.iter() {
-            println!("apply");
             if let Ok(mut stacks) = stacks.get_component_mut::<Self>(target.entity()) {
                 stacks.apply(component, entity);
             }
@@ -58,7 +42,6 @@ where
 
     fn modified_stacks(mut commands: Commands, stacks: Query<(&Self, Entity), Changed<Self>>) {
         for (stack, entity) in stacks.iter() {
-            println!("modified");
             if stack.alive() {
                 commands.entity(entity).insert(stack.target_effect());
             } else {
@@ -119,7 +102,7 @@ impl EffectStack for Burn {
             self.0 = other.0;
         }
     }
-    fn remove(&mut self, _comp: &Self::EffectComponent, _entity: Entity) { }
+    fn remove(&mut self, _comp: &Self::EffectComponent, _entity: Entity) {}
     fn alive(&self) -> bool {
         self.0 > 0
     }
@@ -156,8 +139,8 @@ mod tests {
                         .label("removed_stack")
                         .before("modified_stack"),
                 )
-                .add_system_to_stage( CoreStage::Last, cleanup_despawning.system())
-                .add_system_to_stage( CoreStage::Last, cleanup_removing::<Stun>.system())
+                .add_system_to_stage(CoreStage::Last, cleanup_despawning.system())
+                .add_system_to_stage(CoreStage::Last, cleanup_removing::<Stun>.system())
                 .app,
         );
 
@@ -201,7 +184,9 @@ mod tests {
         assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
 
         // Remove stun from effect.
-        app.world.entity_mut(effect).insert(Remove::<Stun>::default());
+        app.world
+            .entity_mut(effect)
+            .insert(Remove::<Stun>::default());
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
@@ -210,7 +195,7 @@ mod tests {
         assert!(app.world.get_entity(effect).is_some()); // this effect is still alive, just removed the stun component
 
         // Remove stun from secondary effect.
-        app.world.entity_mut(effect2).insert(EffectDespawn);
+        app.world.entity_mut(effect2).insert(Despawn);
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));

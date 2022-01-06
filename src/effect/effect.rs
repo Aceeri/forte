@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::ecs::component::Component;
+use bevy::prelude::*;
 
 use std::marker::PhantomData;
 
@@ -14,8 +14,22 @@ where
     }
 }
 
-pub struct EffectDespawn;
+pub struct Despawn;
 
+pub fn cleanup_despawning(mut commands: Commands, despawning: Query<Entity, With<Despawn>>) {
+    for entity in despawning.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+pub fn cleanup_removing<T: 'static + Send + Sync + Component>(
+    mut commands: Commands,
+    removing: Query<Entity, With<Remove<T>>>,
+) {
+    for entity in removing.iter() {
+        commands.entity(entity).remove::<T>();
+    }
+}
 
 // Effect's target (player, mob, etc.)
 pub struct EffectTarget(pub Entity);
