@@ -1,6 +1,8 @@
 use bevy::{ecs::component::Component, prelude::*};
 
 use crate::effect::*;
+
+use std::marker::PhantomData;
 use smolset::SmolSet;
 
 pub trait EffectStack
@@ -53,18 +55,31 @@ where
     }
 }
 
-// Control how stacking of the same effect works.
+// Reduce a bunch of stacking effects into a single marker component.
 #[derive(PartialEq, Clone, Debug)]
-pub struct StunStacks(SmolSet<[Entity; 4]>);
+pub struct ReduceStack<Effect, TargetEffect> {
+    set: SmolSet<[Entity; 4]>,
+    phantom: PhantomData<(Effect, TargetEffect)>
+}
 
-impl Default for StunStacks {
+impl<E, T> Default for ReduceStack<E, T> {
     fn default() -> Self {
-        Self(SmolSet::new())
+        Self {
+            set: SmolSet::new(),
+            phantom: PhantomData,
+        }
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Default)]
-pub struct StunTimer(u32);
+impl<E, T> ReduceStack<E, T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.set.len()
+    }
+}
 
 // Effect component.
 #[derive(PartialEq, Eq, Clone, Debug, Default)]
@@ -74,46 +89,62 @@ pub struct Stun;
 #[derive(PartialEq, Eq, Clone, Debug, Default)]
 pub struct Stunned;
 
-impl EffectStack for StunStacks {
-    type EffectComponent = Stun;
-    type TargetEffectComponent = Stunned;
+impl<E, T> EffectStack for ReduceStack<E, T>
+where
+    E: 'static + Send + Sync + Component,
+    T: 'static + Send + Sync + Component + Default,
+{
+    type EffectComponent = E;
+    type TargetEffectComponent = T;
     fn apply(&mut self, _comp: &Self::EffectComponent, entity: Entity) {
-        self.0.insert(entity);
+        self.set.insert(entity);
     }
     fn remove(&mut self, _comp: &Self::EffectComponent, entity: Entity) {
-        self.0.remove(&entity);
+        self.set.remove(&entity);
     }
     fn alive(&self) -> bool {
-        self.0.len() > 0
+        self.len() > 0
     }
     fn target_effect(&self) -> Self::TargetEffectComponent {
-        Stunned
-    }
-}
-
-// Re-applying the same effect will only up the timer.
-pub struct Burn(u64); // time in milliseconds.
-
-impl EffectStack for Burn {
-    type EffectComponent = Burn;
-    type TargetEffectComponent = Burn;
-    fn apply(&mut self, other: &Self::EffectComponent, _entity: Entity) {
-        if other.0 > self.0 {
-            self.0 = other.0;
-        }
-    }
-    fn remove(&mut self, _comp: &Self::EffectComponent, _entity: Entity) {}
-    fn alive(&self) -> bool {
-        self.0 > 0
-    }
-    fn target_effect(&self) -> Self::TargetEffectComponent {
-        Burn(self.0)
+        T::default()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(PartialEq, Clone, Debug, Default)]
+    pub struct Stun;
+    #[derive(PartialEq, Clone, Debug, Default)]
+    pub struct Stunned;
+
+    /// Example forwarding implementation of a reducing stack.
+    #[derive(Clone, Debug, Default)]
+    pub struct StunStacks(ReduceStack<Stun, Stunned>);
+
+    impl EffectStack for StunStacks {
+        type EffectComponent = Stun;
+        type TargetEffectComponent = Stunned;
+        fn apply(&mut self, comp: &Self::EffectComponent, entity: Entity) {
+            self.0.apply(comp, entity);
+        }
+        fn remove(&mut self, comp: &Self::EffectComponent, entity: Entity) {
+            self.0.remove(comp, entity);
+        }
+        fn alive(&self) -> bool {
+            self.0.alive()
+        }
+        fn target_effect(&self) -> Self::TargetEffectComponent {
+            self.0.target_effect()
+        }
+    }
+
+    impl StunStacks {
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+    }
 
     #[test]
     fn stack_stuns() {
@@ -170,17 +201,17 @@ mod tests {
             .id();
 
         dbg!(app.world.get::<StunStacks>(target));
-        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 0);
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().len(), 0);
         assert_eq!(app.world.get::<Stunned>(target), None);
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
-        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 2);
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().len(), 2);
         assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
-        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 2);
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().len(), 2);
         assert_eq!(app.world.get::<Stunned>(target), Some(&Stunned));
 
         // Remove stun from effect.
@@ -190,7 +221,7 @@ mod tests {
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
-        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 1);
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().len(), 1);
         assert!(app.world.get::<Stunned>(target).is_some());
         assert!(app.world.get_entity(effect).is_some()); // this effect is still alive, just removed the stun component
 
@@ -199,7 +230,7 @@ mod tests {
 
         app.update();
         dbg!(app.world.get::<StunStacks>(target));
-        assert_eq!(app.world.get::<StunStacks>(target).unwrap().0.len(), 0);
+        assert_eq!(app.world.get::<StunStacks>(target).unwrap().len(), 0);
         assert!(app.world.get::<Stunned>(target).is_none());
         assert!(app.world.get_entity(effect2).is_none()); // this effect was completely killed
     }
