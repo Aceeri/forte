@@ -21,7 +21,8 @@ members = ["./", "tools/ci"]
 [dependencies]
 smolset = "1.3.1"
 fxhash = "0.2.1"
-bevy = { version = "0.5", default-features = false }
+#bevy = { version = "0.5", default-features = false }
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false }
 #bevy = { git = "https://github.com/bevyengine/bevy", default-features = false }
 
 [patch.crates-io]
