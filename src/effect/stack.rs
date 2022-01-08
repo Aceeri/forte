@@ -7,7 +7,7 @@ use smolset::SmolSet;
 
 pub trait EffectStack
 where
-    Self: 'static + Sized + Send + Sync,
+    Self: 'static + Sized + Send + Sync + Component,
 {
     type EffectComponent: Component;
     type TargetEffectComponent: Component;
@@ -56,7 +56,7 @@ where
 }
 
 // Reduce a bunch of stacking effects into a single marker component.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Component, PartialEq, Clone, Debug)]
 pub struct ReduceStack<Effect, TargetEffect> {
     set: SmolSet<[Entity; 4]>,
     phantom: PhantomData<(Effect, TargetEffect)>

@@ -1,13 +1,13 @@
 use bevy::core::{FixedTimestep, FixedTimesteps};
 use bevy::prelude::*;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct Health(u32);
 
-#[derive(Debug, Clone, Default)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct MaxHealth(u32);
 
-#[derive(Debug, Clone, Default)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct HealthRegen(u32);
 
 /*

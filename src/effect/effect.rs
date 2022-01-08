@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 use std::marker::PhantomData;
 
+#[derive(Component, PartialEq, Debug, Clone)]
 pub struct Remove<T: Component>(PhantomData<T>);
 
 impl<T> Default for Remove<T>
@@ -14,6 +15,7 @@ where
     }
 }
 
+#[derive(Component, PartialEq, Debug, Clone)]
 pub struct Despawn;
 
 pub fn cleanup_despawning(mut commands: Commands, despawning: Query<Entity, With<Despawn>>) {
@@ -32,6 +34,7 @@ pub fn cleanup_removing<T: 'static + Send + Sync + Component>(
 }
 
 // Effect's target (player, mob, etc.)
+#[derive(Component, PartialEq, Debug, Clone)]
 pub struct EffectTarget(pub Entity);
 
 impl EffectTarget {
@@ -40,4 +43,5 @@ impl EffectTarget {
     }
 }
 
+#[derive(Component, PartialEq, Debug, Clone)]
 pub struct FromAbility(Entity);

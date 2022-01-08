@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
+#[derive(Component, PartialEq, Debug, Clone)]
 pub struct ProjectileSpeed(u32);
 
+#[derive(Component, PartialEq, Debug, Clone)]
 pub struct ProjectileDirection(Vec3);
 
 fn move_projectile(
