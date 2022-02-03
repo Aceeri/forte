@@ -12,7 +12,6 @@ Bevy ECS ability framework
   
   These can also end up being recursive, for example if we wanted a maximum of health *and* a maximum to the max health we would have 3 components, `Attribute<Health>`, `Attribute<Max<Health>>`, and `Attribute<Max<Max<Health>>>`.
 
-  The reasoning for this is because of extensibility. 
 - `Ability`s are each their own `Entity`. When an ability hits an interactable it may apply an `Effect` which would be a child entity
   of the interactable or the ability itself.
 - `Effect`s are ideally self-reducing to the parent, the developer ultimately should not care what is in the children of the interactable
